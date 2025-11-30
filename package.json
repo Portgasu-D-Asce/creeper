@@ -1,0 +1,9 @@
+{
+  "name": "spoiler_bot",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "tweetnacl": "1.0.3",
+    "node-fetch": "2.6.7"
+  }
+}
