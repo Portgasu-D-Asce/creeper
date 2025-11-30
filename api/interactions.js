@@ -1,67 +1,56 @@
-import nacl from "tweetnacl";
+import { verifyKey } from "discord-interactions";
 
-// Helper: get raw body for signature verification
-async function getRawBody(req) {
-  return await new Promise((resolve, reject) => {
-    let data = "";
-
-    req.on("data", (chunk) => {
-      data += chunk;
-    });
-
-    req.on("end", () => resolve(data));
-    req.on("error", reject);
-  });
-}
-
-// Helper: verify Discord signature
-function verifyDiscordSignature(rawBody, signature, timestamp, clientPublicKey) {
-  const body = new TextEncoder().encode(rawBody);
-  const sig = Buffer.from(signature, "hex");
-  const time = Buffer.from(timestamp, "utf8");
-  const pubKey = Buffer.from(clientPublicKey, "hex");
-
-  return nacl.sign.detached.verify(
-    Buffer.concat([time, body]),
-    sig,
-    pubKey
-  );
-}
+export const config = {
+  api: {
+    bodyParser: false, // IMPORTANT: Required for Discord signature validation
+  },
+};
 
 export default async function handler(req, res) {
   const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 
-  const signature = req.headers["x-signature-ed25519"];
-  const timestamp = req.headers["x-signature-timestamp"];
-  const rawBody = await getRawBody(req);
-
-  if (
-    !verifyDiscordSignature(
-      rawBody,
-      signature,
-      timestamp,
-      PUBLIC_KEY
-    )
-  ) {
-    return res.status(401).send("invalid request signature");
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Handle "ping" from Discord → must reply type 1
-  const body = JSON.parse(rawBody);
+  const signature = req.headers["x-signature-ed25519"];
+  const timestamp = req.headers["x-signature-timestamp"];
 
+  // Read raw body (critical)
+  const rawBody = await getRawBody(req);
+
+  // Validate signature
+  let valid = false;
+  try {
+    valid = verifyKey(rawBody, signature, timestamp, PUBLIC_KEY);
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  if (!valid) {
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  const body = JSON.parse(rawBody.toString());
+
+  // PING -> required for Discord endpoint verification
   if (body.type === 1) {
     return res.status(200).json({ type: 1 });
   }
 
-  // You can handle your slash commands later
   return res.status(200).json({
     type: 4,
-    data: { content: "Bot online!" }
+    data: { content: "Creeper bot online!" }
   });
 }
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = Buffer.from([]);
+    req.on("data", (chunk) => {
+      data = Buffer.concat([data, chunk]);
+    });
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+}
