@@ -1,9 +1,7 @@
 {
-  "name": "spoiler_bot",
+  "name": "creeper",
   "version": "1.0.0",
-  "type": "module",
   "dependencies": {
-    "tweetnacl": "1.0.3",
-    "node-fetch": "2.6.7"
+    "discord-interactions": "^3.3.0"
   }
 }
